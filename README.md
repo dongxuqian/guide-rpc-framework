@@ -9,6 +9,7 @@
 相关项目：
 
 1. [Netty 从入门到实战](https://github.com/Snailclimb/netty-practical-tutorial)(正在更新中...)
+2. [「Java学习+面试指南」一份涵盖大部分Java程序员所需要掌握的核心知识。](https://github.com/Snailclimb/JavaGuide)
 
 ## 前言
 
@@ -70,10 +71,10 @@
 - [x] **客户端调用远程服务的时候进行负载均衡** ：调用服务的时候，从很多服务地址中根据相应的负载均衡算法选取一个服务地址。ps：目前只实现了随机负载均衡算法。
 - [x] **处理一个接口有多个类实现的情况** ：对服务分组，发布服务的时候增加一个 group 参数即可。
 - [x] **集成 Spring 通过注解注册服务**
+- [x] **集成 Spring 通过注解进行服务消费**
 - [x] **增加服务版本号** ：建议使用两位数字版本，如：1.0，通常在接口不兼容时版本号才需要升级。为什么要增加服务版本号？为后续不兼容升级提供可能，比如服务接口增加方法，或服务模型增加字段，可向后兼容，删除方法或删除字段，将不兼容，枚举类型新增字段也不兼容，需通过变更版本号升级。
 - [x] **对 SPI 机制的运用** 
 - [ ] **增加可配置比如序列化方式、注册中心的实现方式,避免硬编码** ：通过 API 配置，后续集成 Spring 的话建议使用配置文件的方式进行配置
-- [ ] **使用注解进行服务消费**
 - [ ] **客户端与服务端通信协议（数据包结构）重新设计** ，可以将原有的 `RpcRequest`和 `RpcReuqest` 对象作为消息体，然后增加如下字段（可以参考：《Netty 入门实战小册》和 Dubbo 框架对这块的设计）：
   - **魔数** ： 通常是 4 个字节。这个魔数主要是为了筛选来到服务端的数据包，有了这个魔数之后，服务端首先取出前面四个字节进行比对，能够在第一时间识别出这个数据包并非是遵循自定义协议的，也就是无效数据包，为了安全考虑可以直接关闭连接以节省资源。
   - **序列化器编号** ：标识序列化的方式，比如是使用 Java 自带的序列化，还是 json，kyro 等序列化方式。
@@ -200,12 +201,32 @@ public class NettyServerMain {
 ### 服务消费端
 
 ```java
-ClientTransport rpcClient = new NettyClientTransport();
+@Component
+public class HelloController {
+
+    @RpcReference(version = "version1", group = "test1")
+    private HelloService helloService;
+
+    public void test() throws InterruptedException {
+        String hello = this.helloService.hello(new Hello("111", "222"));
+        //如需使用 assert 断言，需要在 VM options 添加参数：-ea
+        assert "Hello description is 222".equals(hello);
+        Thread.sleep(12000);
+        for (int i = 0; i < 10; i++) {
+            System.out.println(helloService.hello(new Hello("111", "222")));
+        }
+    }
+}
+```
+
+```java
+ClientTransport clientTransport = new SocketRpcClient();
 RpcServiceProperties rpcServiceProperties = RpcServiceProperties.builder()
-  .group("test1").version("version1").build();
-RpcClientProxy rpcClientProxy = new RpcClientProxy(rpcClient, rpcServiceProperties);
+        .group("test2").version("version2").build();
+RpcClientProxy rpcClientProxy = new RpcClientProxy(clientTransport, rpcServiceProperties);
 HelloService helloService = rpcClientProxy.getProxy(HelloService.class);
 String hello = helloService.hello(new Hello("111", "222"));
+System.out.println(hello);
 ```
 
 ## 相关问题
